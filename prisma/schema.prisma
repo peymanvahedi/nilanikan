@@ -1,0 +1,255 @@
+// ---------- Prisma ----------
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/**
+ * ========== کاربران و سشن‌ها ==========
+ */
+model User {
+  id        String    @id @default(cuid())
+  name      String?
+  email     String?   @unique
+  mobile    String?   @unique
+  password  String?
+  role      Role      @default(CUSTOMER)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  addresses Address[]
+  orders    Order[]
+  reviews   Review[]
+  sessions  Session[]
+  carts     Cart[]
+}
+
+enum Role {
+  ADMIN
+  STAFF
+  CUSTOMER
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  token     String   @unique
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+}
+
+model OTP {
+  id        String   @id @default(cuid())
+  mobile    String
+  codeHash  String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+/**
+ * ========== کاتالوگ ==========
+ */
+model Brand {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  slug     String    @unique
+  products Product[]
+}
+
+model Category {
+  id       String     @id @default(cuid())
+  name     String
+  slug     String     @unique
+  parentId String?
+  parent   Category?  @relation("Subcats", fields: [parentId], references: [id])
+  children Category[] @relation("Subcats")
+  products Product[]
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  title       String
+  slug        String      @unique
+  description String
+  brandId     String?
+  brand       Brand?      @relation(fields: [brandId], references: [id])
+  categoryId  String?
+  category    Category?   @relation(fields: [categoryId], references: [id])
+  price       Int
+  priceBefore Int?
+  stock       Int         @default(0)
+  sku         String?     @unique
+  images      Json
+  ratingAvg   Float       @default(0)
+  ratingCount Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  reviews     Review[]
+  cartItems   CartItem[]
+  orderItems  OrderItem[]
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  rating    Int
+  content   String
+  createdAt DateTime @default(now())
+}
+
+/**
+ * ========== سبد و سفارش ==========
+ */
+model Cart {
+  id          String     @id @default(cuid())
+  userId      String?
+  user        User?      @relation(fields: [userId], references: [id])
+  items       CartItem[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  checkedOut  Boolean    @default(false)
+  checkedOutAt DateTime?
+}
+
+model CartItem {
+  id        String  @id @default(cuid())
+  cartId    String
+  cart      Cart    @relation(fields: [cartId], references: [id])
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  qty       Int     @default(1)
+  price     Int
+}
+
+model Order {
+  id        String      @id @default(cuid())
+  userId    String?
+  user      User?       @relation(fields: [userId], references: [id])
+  status    OrderStatus @default(PENDING)
+  total     Int
+  addressId String?
+  address   Address?    @relation(fields: [addressId], references: [id])
+  items     OrderItem[]
+  gateway   String?
+  refId     String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELED
+  SENT
+  DELIVERED
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id])
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  qty       Int
+  price     Int
+}
+
+model Address {
+  id       String  @id @default(cuid())
+  userId   String
+  user     User    @relation(fields: [userId], references: [id])
+  province String
+  city     String
+  line1    String
+  postal   String
+  lat      Float?
+  lng      Float?
+  orders   Order[]
+}
+
+/**
+ * ========== تنظیمات و منو ==========
+ */
+enum MenuType {
+  DESKTOP
+  MOBILE
+}
+
+enum IconKey {
+  brands
+  special
+  skincare
+  makeup
+  personalcare
+  hair
+  electric
+  perfume
+  fashion
+  supplement
+  digital
+  magazine
+  jewelry
+}
+
+model SiteSetting {
+  id            String   @id @default(cuid())
+  headerLogoUrl String?
+  mobileLogoUrl String?
+  updatedAt     DateTime @updatedAt
+}
+
+model Menu {
+  id        String     @id @default(cuid())
+  name      String
+  type      MenuType
+  items     MenuItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@unique([name, type])
+}
+
+model MenuItem {
+  id       String     @id @default(cuid())
+  menu     Menu       @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  menuId   String
+  parent   MenuItem?  @relation("MenuItemToChildren", fields: [parentId], references: [id])
+  parentId String?
+  title    String
+  slug     String?
+  icon     IconKey?
+  order    Int        @default(0)
+  children MenuItem[] @relation("MenuItemToChildren")
+
+  @@index([menuId])
+  @@index([parentId])
+  @@index([order])
+}
+
+model MobileCat {
+  id     String  @id @default(cuid())
+  title  String
+  href   String
+  icon   IconKey
+  order  Int     @default(0)
+}
+
+model MobileClearance {
+  id        String   @id @default(cuid())
+  title     String
+  href      String
+  image     String?
+  price     Int?
+  oldPrice  Int?
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+}
